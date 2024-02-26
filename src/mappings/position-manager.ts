@@ -13,20 +13,16 @@ import { convertTokenToDecimal, loadTransaction } from '../utils'
 
 function getPosition(event: ethereum.Event, tokenId: BigInt): Position | null {
   let position = Position.load(tokenId.toString())
+
   if (position === null) {
     let contract = NonfungiblePositionManager.bind(event.address)
     let positionCall = contract.try_positions(tokenId)
 
-    // the following call reverts in situations where the position is minted
-    // and deleted in the same block - from my investigation this happens
-    // in calls from  BancorSwap
-    // (e.g. 0xf7867fa19aa65298fadb8d4f72d0daed5e836f3ba01f0b9b9631cdc6c36bed40)
     if (!positionCall.reverted) {
       let positionResult = positionCall.value
       let poolAddress = factoryContract.getPool(positionResult.value2, positionResult.value3, positionResult.value4)
 
       position = new Position(tokenId.toString())
-      // The owner gets correctly updated in the Transfer handler
       position.owner = Address.fromString(ADDRESS_ZERO)
       position.pool = poolAddress.toHexString()
       position.token0 = positionResult.value2.toHexString()
@@ -52,10 +48,12 @@ function getPosition(event: ethereum.Event, tokenId: BigInt): Position | null {
 function updateFeeVars(position: Position, event: ethereum.Event, tokenId: BigInt): Position {
   let positionManagerContract = NonfungiblePositionManager.bind(event.address)
   let positionResult = positionManagerContract.try_positions(tokenId)
+  
   if (!positionResult.reverted) {
     position.feeGrowthInside0LastX128 = positionResult.value.value8
     position.feeGrowthInside1LastX128 = positionResult.value.value9
   }
+  
   return position
 }
 
@@ -80,19 +78,19 @@ function savePositionSnapshot(position: Position, event: ethereum.Event): void {
 }
 
 export function handleIncreaseLiquidity(event: IncreaseLiquidity): void {
-  // temp fix
+  // Temporary fix for a specific block number
   if (event.block.number.equals(BigInt.fromI32(14317993))) {
     return
   }
 
   let position = getPosition(event, event.params.tokenId)
 
-  // position was not able to be fetched
+  // If position couldn't be fetched, return
   if (position == null) {
     return
   }
 
-  // temp fix
+  // Another temporary fix for a specific pool address
   if (Address.fromString(position.pool).equals(Address.fromHexString('0x8fe8d9bb8eeba3ed688069c3d6b556c9ca258248'))) {
     return
   }
@@ -115,19 +113,19 @@ export function handleIncreaseLiquidity(event: IncreaseLiquidity): void {
 }
 
 export function handleDecreaseLiquidity(event: DecreaseLiquidity): void {
-  // temp fix
-  if (event.block.number == BigInt.fromI32(14317993)) {
+  // Temporary fix for a specific block number
+  if (event.block.number.equals(BigInt.fromI32(14317993))) {
     return
   }
 
   let position = getPosition(event, event.params.tokenId)
 
-  // position was not able to be fetched
+  // If position couldn't be fetched, return
   if (position == null) {
     return
   }
 
-  // temp fix
+  // Another temporary fix for a specific pool address
   if (Address.fromString(position.pool).equals(Address.fromHexString('0x8fe8d9bb8eeba3ed688069c3d6b556c9ca258248'))) {
     return
   }
@@ -148,10 +146,12 @@ export function handleDecreaseLiquidity(event: DecreaseLiquidity): void {
 
 export function handleCollect(event: Collect): void {
   let position = getPosition(event, event.params.tokenId)
-  // position was not able to be fetched
+  
+  // If position couldn't be fetched, return
   if (position == null) {
     return
   }
+
   if (Address.fromString(position.pool).equals(Address.fromHexString('0x8fe8d9bb8eeba3ed688069c3d6b556c9ca258248'))) {
     return
   }
@@ -167,15 +167,4 @@ export function handleCollect(event: Collect): void {
 }
 
 export function handleTransfer(event: Transfer): void {
-  let position = getPosition(event, event.params.tokenId)
-
-  // position was not able to be fetched
-  if (position == null) {
-    return
-  }
-
-  position.owner = event.params.to
-  position.save()
-
-  savePositionSnapshot(position!, event)
-}
+  let position = getPosition(event
